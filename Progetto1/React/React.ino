@@ -12,7 +12,7 @@
 
 #define POT A0
 
-#define ISR_DEBOUNCE 350   /*tempo di debounce in ms*/
+#define ISR_DEBOUNCE 280   /*tempo di debounce in ms*/
 /* Wiring: SDA => A4, SCL => A5 */
 /* I2C address of the LCD: 0x27 */
 /* Number of columns: 20 rows: 4 */
@@ -30,6 +30,13 @@ const int SCROLL_INTERVAL = 300; //variabile per lcd scroll + tempo di attesa pe
 const int MAX_WAIT = 5000; // tempo massimo che puo' passare prima di vedere il valore sul display
 const int MIN_WAIT = 1000; // tempo minimo che puo' passare prima di vedere il valore sul display
 const int MAX_NUM_CLICK = 3; // num massimo di click che puo' uscire casualmente
+
+
+/* 
+Flag per verificare se è la prima esecuzione 
+viene impostato a true nel MAIN setup
+*/
+bool isFirstRoundOfPlay = false; 
 
 
 struct Player {
@@ -68,24 +75,15 @@ enum gameState gameStateActual;
 //utilities
 
 void actionCounterPlayer1() {
-  if(millis()-p1.lastClick > ISR_DEBOUNCE ){
-    
+  if(millis() - p1.lastClick > ISR_DEBOUNCE ){ 
     p1.numClick++;
     //Serial.println(String(p1.numClick));
     p1.lastClick = millis();
   }
-
-
 }
 
 void actionCounterPlayer2() {
-    /*
-      p2.lastClick= millis();
-  p2.numClick++;*/
-  //Serial.print("p2 click: " + String(p2.numClick));
-
-    if(millis()-p2.lastClick > ISR_DEBOUNCE ){
-    
+  if(millis() - p2.lastClick > ISR_DEBOUNCE ){
     p2.numClick++;
     //Serial.println(String(p1.numClick));
     p2.lastClick = millis();
@@ -109,6 +107,30 @@ void ledDescending(int pin, int &brightVal, int &fadingVal, int minBright, int m
   brightVal += fadingVal;
 }
 
+float updateDifficultyFromPot() { 
+//chiamata solo nel setupdi ogni prima Partita
+//non round
+  int raw = analogRead(POT);
+  //float 
+  float factorF=0.90;
+  int difficultyLevel = map(raw, 0, 1023, 1, 4);/*per gestire le casistiche da potenziometro*/
+  // imposta factorF per livello (più livello -> riduzione più forte)
+  switch (difficultyLevel) {
+    case 1:
+      factorF = 0.95; /*riduzione lieve*/
+    case 2:
+      factorF = 0.90; /*riduzione media*/
+    case 3:
+      factorF = 0.85; 
+    case 4:
+      factorF = 0.80; /*molto difficile*/
+    default:
+      factorF = 0.90;
+  }
+  Serial.println(String(factorF)+ "factorF");
+  return factorF;
+}
+
 // metodi veri
 
 /*
@@ -126,14 +148,14 @@ void preparationGame(){
   // reset dati player 2
   p2.pointsPlayer = 0;
   p2.numClick = 0;
+
   digitalWrite(p2.pinLedRed, LOW);
   digitalWrite(p2.pinLedGreen, LOW);
   
   gameStateActual = READY_TO_PLAY;
-  //currentMillis = millis();
 
   stateTimer = millis();
-  Serial.println("preparazione");
+  //Serial.println("preparazione");
 }
 
 /*
@@ -148,39 +170,35 @@ void readyToPlay() {
   static int brightLevel1 = 0;              //quanto è luminoso il led 1
   static int brightLevel2 = 255;            //quanto è luminoso il led 2
 
-  // Flag statico per verificare se è la prima esecuzione
-  static bool isInitialized = false;
-
-  //stateTimer = currentMillis;
-
-  if (!isInitialized) {
+  if (isFirstRoundOfPlay) {
     digitalWrite(p1.pinLedGreen, LOW);
     digitalWrite(p2.pinLedGreen, LOW);
-    isInitialized = true;
+    isFirstRoundOfPlay = false;
   }
 
   ledAscending(PIN_RED_1, brightLevel1, fadingValue1, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
   ledDescending(PIN_RED_2, brightLevel2, fadingValue2, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
-  Serial.println("fattiLED");
+  //Serial.println("fattiLED");
   showDisplay2(SCROLL_INTERVAL, "Welcome to the React! Game. Press Buttons to Start");
-  Serial.println("fattoLCD");
+  //Serial.println("fattoLCD");
   // controllo per verificare se è passato abbastanza tempo e si puo' entrare in modalità sleep
   if (currentMillis - stateTimer >= TIME_BEFORE_SLEEPING) {
         gameStateActual = SLEEP_MODE;
-        Serial.println("FATTODORMIRRE");
+        //Serial.println("FATTODORMIRRE");
     } 
-
-  // controllo per verificare se btn1 e 2 sono stati premuti insieme e si puo' passare alla fase play
-  // ATTENZIONE TROPPO VELOCE AGGIUNGERE RITARDO PER CLICKKKKKKKKKKKKK KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK
 
   //DA CHIEDERE AL PROF SE I BOTTONI DEVONO ESERE PREMUTI SIMULTANEAMENTE O BASTA UNO DOPO ALTRO,Reggia propone in caso di usare 2 variabili per stato high e low
   if (digitalRead(p1.pinBtn) == HIGH || digitalRead(p2.pinBtn) == HIGH) {
+    /*
+    cambio lo stato e passo al play();
+    
+    */
     gameStateActual = PLAY;
-    Serial.println("setupEn Play");
+
+    //Serial.println("setupEn Play");
     setupPlay();
-    //play();
   }
-  Serial.println("readytoPlay");
+  //Serial.println("readytoPlay");
 }
 
 // Mostra una frase a scorrimento su una sola riga ed è indipendente dal tipo di display.
@@ -297,7 +315,7 @@ void setupPlay() {
   lcd.clear();
 
   // Inizializza i parametri del round
-  timeToWait = random(MIN_WAIT, MAX_WAIT+1); // Da 1 a 5 secondi
+  timeToWait = random(MIN_WAIT, MAX_WAIT+1) * updateDifficultyFromPot(); // Da 1 a 5 secondi
   numClickRound =random(1, 4);    // Da 1 a 3 click
   
   roundStartTime = millis();       // Prende il tempo ESATTO di inizio
@@ -307,48 +325,69 @@ void setupPlay() {
   p1.numClick = 0;
   p2.numClick = 0;
   lcd.setCursor(0, 0);
-  lcd.println("GO!");
+  //lcd.println("GO!");
+  showDisplay2(SCROLL_INTERVAL, "GO!");
+/*  
+  delay(200);
   lcd.clear();
-  lcd.setCursor(0, 0);
-  Serial.println("numero go");
+  lcd.setCursor(0, 0);*/
+  //Serial.println("numero go");
 }
 
 
 // esegue il gioco vero e proprio
 void play() {
-  Serial.println("inPlay");
-  /*  
-  static int timeToWait = random(0, MAX_WAIT + 1); // tempo di attesa casuale prima che compaia il num.
-  static int numClickRound = random (1, MAX_NUM_CLICK + 1); // num di click del round
-  static int startTime = millis(); // salva il tempo iniziale per calcolare l'attesa prima di far uscire il num
-  */
-  
+  //Serial.println("inPlay");
   if(!isNumberSpawned) {
       // Attesa prima che compaia il numero
-      Serial.println("timetoplayNumSpownedddd");
+      //Serial.println("timetoplayNumSpownedddd");
       if(millis() - roundStartTime >= timeToWait) {
         // Il tempo di attesa è scaduto
         isNumberSpawned = true;
         lcd.clear(); // Pulisce lo schermo dal "Go!"
-        Serial.println("inPlay e numSpown");
+        //Serial.println("inPlay e numSpown");
         timerForMatchInGame=millis();
+        /*
+        TODOOOOOOOO metodo resetclick e penalita
+        se un interrupt viene eseguito qui, 
+        malus al giocatore corrispondente, 
+        led rossi immediatamente  e -1 punto
+        */
       }
   } else {
     
     // Il numero è uscito.
     // Qui andrà inserita la logica di countdown per dare ai giocatori un limite di tempo
     // per cliccare, e poi la transizione a CHECK_VICTORY
-    Serial.println("else");
-    showDisplay2(SCROLL_INTERVAL, String(numClickRound));//reggia : ho sostituito il magic number
+    //Serial.println("else");
+
+    showDisplay2(SCROLL_INTERVAL, String(numClickRound));
+    //reggia : ho sostituito il magic number
   
     if(millis()-timerForMatchInGame > timeToWait){
-      Serial.println("partita finita");
+      //Serial.println("partita finita");
       //superato il tempo di gioco controllo lo stato dei punteggi
       // e salvo lultimo tempo di click di entrambi i giocatori --> nella funzione invocata al click
       // cosi da confrontare chi ha terminato prima
       // dopo nessa sequenza successiva controllo chi ha fatto il numero corretto di click 
       // quindi passo a check status victory ?
-      gameStateActual=CHECK_VICTORY;
+              
+        /*
+        TODOOOOOOOO  metodo resetclick e penalita
+        se un interrupt viene eseguito qui, 
+        malus al giocatore corrispondente, 
+        led rossi immediatamente  e -1 punto
+        */
+
+
+        /*
+              gameStateActual=CHECK_VICTORY;
+      G1 3
+       milluis 3 in tempo
+      G2 3 4 con timer gia scaduto ++> -1 click penalita,
+        millis associato a 4 click , ma 4 click fuori
+
+        */
     }
   }
 } 
@@ -361,7 +400,7 @@ void deepSleepWhileWait(){
   analogWrite(PIN_RED_2, 0);
   digitalWrite(PIN_GREEN_1, LOW);
   digitalWrite(PIN_GREEN_2, LOW);
-  Serial.println("dormendo");
+  //Serial.println("dormendo");
   Serial.flush();
   delay(MIN_WAIT); //uso MIN_WAIT per non usare magic numbers  
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -371,7 +410,7 @@ void deepSleepWhileWait(){
   sleep_mode(); 
   // Il microcontrollore si ferma qui fino all'interrupt
   sleep_disable();
-  Serial.println("svegliando");
+  //Serial.println("svegliando");
   lcd.backlight();
   gameStateActual = PREPARATION;
 }
@@ -388,14 +427,14 @@ void logicForCheckVictory(){
 
 
   /*
-  disabilito iterrupt per non permettere ai giocatori 
-  di cliccare dopo la scadenza del timer
+    disabilito iterrupt per non permettere ai giocatori 
+    di cliccare dopo la scadenza del timer
   */
   detachInterrupt(digitalPinToInterrupt(p1.pinBtn));
   detachInterrupt(digitalPinToInterrupt(p2.pinBtn));
 
   //caso pareggio click, controllo i tempi
-  Serial.println("in check victory");
+  //Serial.println("in check victory");
   if(p1.numClick == numClickRound && p2.numClick == numClickRound){
     if(p1.lastClick < p2.lastClick){
       Serial.println("vince P1");
@@ -403,6 +442,7 @@ void logicForCheckVictory(){
 
       digitalWrite(p1.pinLedGreen, HIGH);
       delay(2000); // SENTIAMO CON IL PROOOOOOOOOOOOOFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+      //LO CONSIDERIAMO COME UNA FASE DI STOP OPPURE UTILIZZIAMO MILLIS() CHIADIAMO PER SICUREZZA
       digitalWrite(p1.pinLedGreen, LOW);
     } else {
       Serial.println("vince P2");
@@ -412,8 +452,6 @@ void logicForCheckVictory(){
       delay(2000);
       digitalWrite(p2.pinLedGreen, LOW);
     }
-    Serial.println("Pl1 :" + String(p1.pointsPlayer) );
-    Serial.println("Pl2 :" + String(p2.pointsPlayer));
   }
 
   //vittoria diretta di P1 sui click
@@ -426,7 +464,6 @@ void logicForCheckVictory(){
     digitalWrite(p1.pinLedGreen, HIGH);
     delay(2000);
     digitalWrite(p1.pinLedGreen, LOW);
-
   }
 
   //vittoria diretta di P2 sui punteggi
@@ -439,6 +476,7 @@ void logicForCheckVictory(){
     digitalWrite(p2.pinLedGreen, HIGH);
     delay(2000);
     digitalWrite(p2.pinLedGreen, LOW);
+
   }
 
   //nessuno dei due ha fatto giusto
@@ -456,10 +494,10 @@ void logicForCheckVictory(){
   }
    
 
-  //stampe di checkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk  
+   
   Serial.println("p1 click: " + String(p1.numClick));
   Serial.println("p2 click: " + String(p2.numClick));
-  delay(10000);
+  delay(2000);
 
   //cambio stato a wait for next game
   gameStateActual = WAITING_FOR_NEXT_GAME ;
@@ -529,6 +567,7 @@ void setup() {
 
   lcd.init();
   lcd.backlight();
+  isFirstRoundOfPlay = true;
 
   /*
   Setting dei parametri per lettura accurata di 
@@ -587,7 +626,7 @@ void loop() {
     case WAITING_FOR_NEXT_GAME:
       waitForNextGame();
     
-        Serial.println("WAITING for next GAME");
+        //Serial.println("WAITING for next GAME");
       break;
 
     case GAME_OVER:
@@ -597,7 +636,7 @@ void loop() {
       break;
     default :
       gameStateActual = PREPARATION;
-      Serial.println(" c'é stato un bug");
+      //Serial.println(" c'é stato un bug");
   }
   
 }
