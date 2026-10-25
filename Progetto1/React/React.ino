@@ -537,11 +537,10 @@ il click farà ripartire un nuovo round --> quindi torniamo in stato di play
 se non avviene alcun click si passa allo stato di GAME OVER, dove verranno forniti i 
 risultati finali  
 */
-/*
-Il tempo di attesa è scaduto senza alcun click dei giocatori
-*/
-/*
 void waitForNextGame(){
+  /*
+  Il tempo di attesa è scaduto senza alcun click dei giocatori
+  */ 
   
   if(millis() - roundStartTime >= timeToWait && (p1.numClick == 0 || p2.numClick == 0)) {
     lcd.clear(); // Pulisce lo schermo da errori o rimasugli
@@ -558,7 +557,6 @@ void waitForNextGame(){
 
   }
 }
-*/
 
 /*
 GAME OVER
