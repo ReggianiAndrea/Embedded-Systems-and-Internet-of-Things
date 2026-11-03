@@ -370,4 +370,5 @@ void gameOverFinish(){
       isFirstRoundOfPlay = true;    // Permette di rileggere il potenziometro nel setupPlay
       gameStateActual = PREPARATION; // Torna alla schermata "Press Buttons to Start"
   }
+
 }

@@ -34,7 +34,7 @@ double currentT1 = MAX_WAIT;  // Tempo di reazione che si accorcerà, tempo iniz
 
 // Flag per verificare se è la prima esecuzione, viene impostato a true nel setUp
 bool isFirstRoundOfPlay = false;
-bool playInGame = false ; //variabile inizializzata in setupplay, usata come determinante per accettare o non gli interrupts
+bool isPlayInGame = false ; //variabile inizializzata in setupplay, usata come determinante per accettare o non gli interrupts
 struct Player {
   volatile int pointsPlayer;   // punti totali del giocatore
   volatile int numClick;       // num di click del giocatore nel round
@@ -88,7 +88,7 @@ void setup() {
   lcd.init();
   lcd.backlight();
   isFirstRoundOfPlay = true;
-  playInGame = true;
+  isPlayInGame = true;
   //currentT1 = MAX_WAIT;  // Tempo di reazione che si accorcerà, tempo iniziale
 
   Serial.begin(9600);
@@ -131,11 +131,6 @@ void loop() {
     case CHECK_VICTORY:
       logicForCheckVictory();
       break;
-/*
-    case WAITING_FOR_NEXT_GAME:
-      waitForNextGame();
-      break;
-*/
     case GAME_OVER:
       gameOverFinish();
       break;
