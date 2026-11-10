@@ -3,6 +3,7 @@
 #include "Scheduler/Scheduler.h"
 #include "ButtonTask/ButtonTask.h"
 #include "LightTask/LightTask.h"
+
 Scheduler sched;
 bool msg;
 
@@ -19,6 +20,16 @@ void setup() {
   Task* t1 = new LightTask(3,&msg);
   t1->init(50);
   sched.addTask(t1);
+
+  Task* t2 = new LightTask(4,&msg);
+  t2->init(50);
+  sched.addTask(t2);
+
+  Task* t3 = new LightTask(5,&msg);
+  t3->init(50);
+  sched.addTask(t3);
+
+
 }
 
 void loop() {
